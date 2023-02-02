@@ -1,6 +1,7 @@
 use std::{
   io::{prelude::*, BufReader},
   net::{TcpListener, TcpStream},
+  sync::Arc,
 };
 
 enum Method {
@@ -22,6 +23,7 @@ type Handler = Box<dyn FnOnce(Request) -> Response + 'static>;
 pub struct Server {
   max_connections: usize,
   listeners: Vec<Listener>,
+  connection_handler_reference: Arc<ConnectionHandler>,
 }
 
 pub struct ServerConf {
@@ -33,6 +35,7 @@ impl Server {
     Server {
       max_connections: conf.max_connections,
       listeners: Vec::new(),
+      connection_handler_reference: Arc::new(ConnectionHandler {}),
     }
   }
 
@@ -59,8 +62,10 @@ impl Server {
       // some of the open connections are closed.
       let stream = stream.unwrap();
 
-      pool.execute(|| {
-        handle_connection(stream);
+      let handler = self.connection_handler_reference.clone();
+
+      pool.execute(move || {
+        handler.handle_connection(stream);
       });
     }
   }
@@ -88,38 +93,42 @@ pub struct Request {
 
 pub struct Response;
 
-fn handle_connection(mut stream: TcpStream) {
-  // BufReader implements the std::io::BufRead trait, which provides the lines
-  // method.
-  let buf_reader = BufReader::new(&mut stream);
+struct ConnectionHandler {}
 
-  let request_line = buf_reader
-    // The lines method returns an iterator of `Result<String, std::io::Error>`
-    // by splitting the stream of data whenever it sees a newline byte.
-    .lines()
-    // gets the first item from the iterator.
-    .next()
-    // takes care of the `Option` and stops the program if the iterator has no
-    // items
-    .unwrap()
-    // handles the `Result`.
-    .unwrap();
+impl ConnectionHandler {
+  pub fn handle_connection(&self, mut stream: TcpStream) {
+    // BufReader implements the std::io::BufRead trait, which provides the lines
+    // method.
+    let buf_reader = BufReader::new(&mut stream);
 
-  let mut request_line = request_line.split_whitespace();
-  let method = request_line.next().unwrap();
-  let path = request_line.next().unwrap();
+    let request_line = buf_reader
+      // The lines method returns an iterator of `Result<String, std::io::Error>`
+      // by splitting the stream of data whenever it sees a newline byte.
+      .lines()
+      // gets the first item from the iterator.
+      .next()
+      // takes care of the `Option` and stops the program if the iterator has no
+      // items
+      .unwrap()
+      // handles the `Result`.
+      .unwrap();
 
-  let (status_line, contents) = if path == "/" {
-    ("HTTP/1.1 200 OK", "Hello")
-  } else {
-    ("HTTP/1.1 404 NOT FOUND", "Not found")
-  };
+    let mut request_line = request_line.split_whitespace();
+    let method = request_line.next().unwrap();
+    let path = request_line.next().unwrap();
 
-  let length = contents.len();
-  let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+    let (status_line, contents) = if path == "/" {
+      ("HTTP/1.1 200 OK", "Hello")
+    } else {
+      ("HTTP/1.1 404 NOT FOUND", "Not found")
+    };
 
-  // The write_all method on stream takes a &[u8] and sends those bytes directly
-  // down the connection.
-  stream.write_all(response.as_bytes()).unwrap();
-  stream.flush().unwrap();
+    let length = contents.len();
+    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+
+    // The write_all method on stream takes a &[u8] and sends those bytes directly
+    // down the connection.
+    stream.write_all(response.as_bytes()).unwrap();
+    stream.flush().unwrap();
+  }
 }
