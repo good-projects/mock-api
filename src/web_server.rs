@@ -5,7 +5,7 @@ use std::{
 };
 
 enum Method {
-  get,
+  Get,
 }
 
 mod thread_pool;
@@ -76,7 +76,7 @@ impl Server {
   {
     let handler = Box::new(f);
     self.listeners.push(Listener {
-      method: Method::get,
+      method: Method::Get,
       route: String::from(path),
       handler,
     });
