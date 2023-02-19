@@ -1,7 +1,7 @@
 use std::{
   io::{prelude::*, BufReader},
   net::{TcpListener, TcpStream},
-  sync::Arc,
+  sync::{Arc, Mutex},
 };
 
 enum Method {
@@ -18,12 +18,11 @@ pub struct Listener {
   handler: Handler,
 }
 
-type Handler = Box<dyn FnOnce(Request) -> Response + 'static>;
+type Handler = Box<dyn FnOnce(Request) -> Response + Send + 'static>;
 
 pub struct Server {
   max_connections: usize,
-  listeners: Vec<Listener>,
-  connection_handler: Arc<ConnectionHandler>,
+  connection_handler: Arc<Mutex<ConnectionHandler>>,
 }
 
 pub struct ServerConf {
@@ -34,8 +33,7 @@ impl Server {
   pub fn new(conf: ServerConf) -> Server {
     Server {
       max_connections: conf.max_connections,
-      listeners: Vec::new(),
-      connection_handler: Arc::new(ConnectionHandler {}),
+      connection_handler: Arc::new(Mutex::new(ConnectionHandler::new())),
     }
   }
 
@@ -62,23 +60,24 @@ impl Server {
       // some of the open connections are closed.
       let stream = stream.unwrap();
 
-      let handler = self.connection_handler.clone();
+      let connection_handler = self.connection_handler.clone();
 
       pool.execute(move || {
-        handler.handle_connection(stream);
+        let connection_handler = connection_handler.lock().unwrap();
+        connection_handler.handle_connection(stream);
       });
     }
   }
 
-  pub fn get<F>(&mut self, path: &str, f: F)
+  pub fn get<F>(&mut self, path: &str, request_handler: F)
   where
-    F: FnOnce(Request) -> Response + 'static,
+    F: FnOnce(Request) -> Response + Send + 'static,
   {
-    let handler = Box::new(f);
-    self.listeners.push(Listener {
+    let mut connection_handler = self.connection_handler.lock().unwrap();
+    connection_handler.listeners.push(Listener {
       method: Method::Get,
       route: String::from(path),
-      handler,
+      handler: Box::new(request_handler),
     });
   }
 }
@@ -93,9 +92,17 @@ pub struct Request {
 
 pub struct Response;
 
-struct ConnectionHandler {}
+struct ConnectionHandler {
+  listeners: Vec<Listener>,
+}
 
 impl ConnectionHandler {
+  pub fn new() -> ConnectionHandler {
+    ConnectionHandler {
+      listeners: Vec::new(),
+    }
+  }
+
   pub fn handle_connection(&self, mut stream: TcpStream) {
     // BufReader implements the std::io::BufRead trait, which provides the lines
     // method.
