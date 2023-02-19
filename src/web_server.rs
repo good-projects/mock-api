@@ -23,7 +23,7 @@ type Handler = Box<dyn FnOnce(Request) -> Response + 'static>;
 pub struct Server {
   max_connections: usize,
   listeners: Vec<Listener>,
-  connection_handler_reference: Arc<ConnectionHandler>,
+  connection_handler: Arc<ConnectionHandler>,
 }
 
 pub struct ServerConf {
@@ -35,7 +35,7 @@ impl Server {
     Server {
       max_connections: conf.max_connections,
       listeners: Vec::new(),
-      connection_handler_reference: Arc::new(ConnectionHandler {}),
+      connection_handler: Arc::new(ConnectionHandler {}),
     }
   }
 
@@ -62,7 +62,7 @@ impl Server {
       // some of the open connections are closed.
       let stream = stream.unwrap();
 
-      let handler = self.connection_handler_reference.clone();
+      let handler = self.connection_handler.clone();
 
       pool.execute(move || {
         handler.handle_connection(stream);
