@@ -17,6 +17,7 @@ impl Method {
   }
 }
 
+mod helpers;
 mod thread_pool;
 
 pub use thread_pool::ThreadPool;
@@ -105,27 +106,6 @@ pub struct Response {
   headers: HashMap<String, String>,
 }
 
-fn map_to_string(map: &HashMap<String, Box<dyn Any>>) -> String {
-  let mut result = String::new();
-  result.push_str("{");
-
-  for (i, (key, value)) in map.iter().enumerate() {
-    match value.downcast_ref::<i32>() {
-      Some(v) => result.push_str(&format!("\"{}\":{}", key, v)),
-      None => match value.downcast_ref::<String>() {
-        Some(v) => result.push_str(&format!("\"{}\":\"{}\"", key, v)),
-        None => result.push_str(&format!("\"{}\":null", key)),
-      },
-    };
-    if i < map.len() - 1 {
-      result.push_str(",");
-    }
-  }
-
-  result.push_str("}");
-  result
-}
-
 impl Response {
   pub fn json(
     status: u16,
@@ -141,7 +121,7 @@ impl Response {
 
     Response {
       status,
-      body: map_to_string(&body),
+      body: helpers::map_to_string(&body),
       headers,
     }
   }
