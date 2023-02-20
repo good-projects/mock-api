@@ -1,11 +1,20 @@
 use std::{
+  any::Any,
+  collections::HashMap,
   io::{prelude::*, BufReader},
   net::{TcpListener, TcpStream},
-  sync::Arc,
+  sync::{Arc, Mutex},
 };
 
 enum Method {
-  get,
+  Get,
+}
+impl Method {
+  fn to_string(&self) -> String {
+    match self {
+      Method::Get => String::from("GET"),
+    }
+  }
 }
 
 mod thread_pool;
@@ -18,12 +27,11 @@ pub struct Listener {
   handler: Handler,
 }
 
-type Handler = Box<dyn FnOnce(Request) -> Response + 'static>;
+type Handler = Box<dyn Fn(Request) -> Response + Send + 'static>;
 
 pub struct Server {
   max_connections: usize,
-  listeners: Vec<Listener>,
-  connection_handler_reference: Arc<ConnectionHandler>,
+  connection_handler: Arc<Mutex<ConnectionHandler>>,
 }
 
 pub struct ServerConf {
@@ -34,8 +42,7 @@ impl Server {
   pub fn new(conf: ServerConf) -> Server {
     Server {
       max_connections: conf.max_connections,
-      listeners: Vec::new(),
-      connection_handler_reference: Arc::new(ConnectionHandler {}),
+      connection_handler: Arc::new(Mutex::new(ConnectionHandler::new())),
     }
   }
 
@@ -62,23 +69,24 @@ impl Server {
       // some of the open connections are closed.
       let stream = stream.unwrap();
 
-      let handler = self.connection_handler_reference.clone();
+      let connection_handler = self.connection_handler.clone();
 
       pool.execute(move || {
-        handler.handle_connection(stream);
+        let connection_handler = connection_handler.lock().unwrap();
+        connection_handler.handle_connection(stream);
       });
     }
   }
 
-  pub fn get<F>(&mut self, path: &str, f: F)
+  pub fn get<F>(&mut self, path: &str, request_handler: F)
   where
-    F: FnOnce(Request) -> Response + 'static,
+    F: Fn(Request) -> Response + Send + 'static,
   {
-    let handler = Box::new(f);
-    self.listeners.push(Listener {
-      method: Method::get,
+    let mut connection_handler = self.connection_handler.lock().unwrap();
+    connection_handler.listeners.push(Listener {
+      method: Method::Get,
       route: String::from(path),
-      handler,
+      handler: Box::new(request_handler),
     });
   }
 }
@@ -91,11 +99,65 @@ pub struct Request {
   headers: String,
 }
 
-pub struct Response;
+pub struct Response {
+  status: u16,
+  body: String,
+  headers: HashMap<String, String>,
+}
 
-struct ConnectionHandler {}
+fn map_to_string(map: &HashMap<String, Box<dyn Any>>) -> String {
+  let mut result = String::new();
+  result.push_str("{");
+
+  for (i, (key, value)) in map.iter().enumerate() {
+    match value.downcast_ref::<i32>() {
+      Some(v) => result.push_str(&format!("\"{}\":{}", key, v)),
+      None => match value.downcast_ref::<String>() {
+        Some(v) => result.push_str(&format!("\"{}\":\"{}\"", key, v)),
+        None => result.push_str(&format!("\"{}\":null", key)),
+      },
+    };
+    if i < map.len() - 1 {
+      result.push_str(",");
+    }
+  }
+
+  result.push_str("}");
+  result
+}
+
+impl Response {
+  pub fn json(
+    status: u16,
+    body: HashMap<String, Box<dyn Any>>,
+    headers: Option<HashMap<String, String>>,
+  ) -> Response {
+    let mut headers = headers.unwrap_or(HashMap::new());
+
+    headers.insert(
+      String::from("Content-Type"),
+      String::from("application/json"),
+    );
+
+    Response {
+      status,
+      body: map_to_string(&body),
+      headers,
+    }
+  }
+}
+
+struct ConnectionHandler {
+  listeners: Vec<Listener>,
+}
 
 impl ConnectionHandler {
+  pub fn new() -> ConnectionHandler {
+    ConnectionHandler {
+      listeners: Vec::new(),
+    }
+  }
+
   pub fn handle_connection(&self, mut stream: TcpStream) {
     // BufReader implements the std::io::BufRead trait, which provides the lines
     // method.
@@ -114,17 +176,40 @@ impl ConnectionHandler {
       .unwrap();
 
     let mut request_line = request_line.split_whitespace();
-    let method = request_line.next().unwrap();
+    let method = request_line.next().unwrap().to_uppercase();
     let path = request_line.next().unwrap();
 
-    let (status_line, contents) = if path == "/" {
-      ("HTTP/1.1 200 OK", "Hello")
-    } else {
-      ("HTTP/1.1 404 NOT FOUND", "Not found")
-    };
+    let mut status = 500;
+    let mut contents = String::new();
+    let mut headers = String::new();
+
+    for listener in self.listeners.iter() {
+      let handler = &listener.handler;
+
+      let request = Request {
+        path: String::from(path),
+        queries: String::from(""),
+        params: String::from(""),
+        body: String::from(""),
+        headers: String::from(""),
+      };
+
+      if listener.route == path && listener.method.to_string() == method {
+        let response = handler(request);
+        status = response.status;
+        contents = response.body;
+
+        if response.headers.len() > 0 {
+          for (key, value) in response.headers.iter() {
+            headers.push_str(&format!("{}: {}\r\n", key, value));
+          }
+        }
+      }
+    }
 
     let length = contents.len();
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+    let response =
+      format!("HTTP/1.1 {status}\r\n{headers}Content-Length: {length}\r\n\r\n{contents}");
 
     // The write_all method on stream takes a &[u8] and sends those bytes directly
     // down the connection.
