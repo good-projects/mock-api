@@ -24,10 +24,20 @@ fn main() {
     Response::json(status, body, headers)
   });
 
+  // Get a project.
   server.get("/projects/:name", |request| {
     let body = HashMap::new();
     Response::json(200, body, None)
   });
+
+  // Create a project.
+  server.post("/projects/:name", |request| {
+    let body = HashMap::new();
+    Response::json(200, body, None)
+  });
+
+  // Update a project.
+  // TODO: Implement this.
 
   server.listen(String::from(SERVER_ADDR));
 }

@@ -8,11 +8,13 @@ use std::{
 
 enum Method {
   Get,
+  Post,
 }
 impl Method {
   fn to_string(&self) -> String {
     match self {
       Method::Get => String::from("GET"),
+      Method::Post => String::from("POST"),
     }
   }
 }
@@ -79,22 +81,36 @@ impl Server {
     }
   }
 
-  pub fn get<F>(&mut self, path: &str, request_handler: F)
+  fn request<F>(&mut self, method: Method, path: &str, request_handler: F)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
     let mut connection_handler = self.connection_handler.lock().unwrap();
     connection_handler.listeners.push(Listener {
-      method: Method::Get,
+      method,
       route: String::from(path),
       handler: Box::new(request_handler),
     });
+  }
+
+  pub fn get<F>(&mut self, path: &str, request_handler: F)
+  where
+    F: Fn(Request) -> Response + Send + 'static,
+  {
+    self.request(Method::Get, path, request_handler);
+  }
+
+  pub fn post<F>(&mut self, path: &str, request_handler: F)
+  where
+    F: Fn(Request) -> Response + Send + 'static,
+  {
+    self.request(Method::Post, path, request_handler);
   }
 }
 
 pub struct Request {
   path: String,
-  body: String,
+  body: Option<String>,
   headers: String,
   queries: Option<HashMap<String, String>>,
   params: Option<HashMap<String, String>>,
@@ -164,19 +180,24 @@ impl ConnectionHandler {
     let mut headers = String::new();
 
     for listener in self.listeners.iter() {
-      let handler = &listener.handler;
-
-      let mut request = Request {
-        path: String::from(path),
-        queries: None,
-        params: None,
-        body: String::from(""),
-        headers: String::from(""),
-      };
-
       let parsed_path = helpers::parse_request_path(&listener.route[..], path);
 
       if parsed_path.is_some() && listener.method.to_string() == method {
+        let handler = &listener.handler;
+
+        let mut request_body = Option::None;
+        if method == "POST" {
+          // TODO: read the body
+        }
+
+        let mut request = Request {
+          path: String::from(path),
+          queries: None,
+          params: None,
+          body: request_body,
+          headers: String::from(""),
+        };
+
         let parsed_path = parsed_path.unwrap();
         request.path = parsed_path.path;
         request.queries = parsed_path.queries;
