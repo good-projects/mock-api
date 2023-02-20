@@ -1,4 +1,6 @@
 mod web_server;
+use std::{any::Any, collections::HashMap};
+
 use web_server::{Response, Server, ServerConf};
 
 const SERVER_ADDR: &str = "127.0.0.1:53500";
@@ -10,9 +12,16 @@ fn main() {
   });
 
   server.get("/", |request| {
-    println!("hello");
-    //
-    Response
+    let status = 200;
+    let headers = None;
+    let mut body = HashMap::new();
+
+    body.insert(
+      "name".to_owned(),
+      Box::new("Hello World".to_owned()) as Box<dyn Any>,
+    );
+
+    Response::json(status, body, headers)
   });
 
   server.listen(String::from(SERVER_ADDR));
