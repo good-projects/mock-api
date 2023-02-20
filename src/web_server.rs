@@ -94,10 +94,10 @@ impl Server {
 
 pub struct Request {
   path: String,
-  queries: String,
-  params: String,
   body: String,
   headers: String,
+  queries: Option<HashMap<String, String>>,
+  params: Option<HashMap<String, String>>,
 }
 
 pub struct Response {
@@ -166,15 +166,22 @@ impl ConnectionHandler {
     for listener in self.listeners.iter() {
       let handler = &listener.handler;
 
-      let request = Request {
+      let mut request = Request {
         path: String::from(path),
-        queries: String::from(""),
-        params: String::from(""),
+        queries: None,
+        params: None,
         body: String::from(""),
         headers: String::from(""),
       };
 
-      if listener.route == path && listener.method.to_string() == method {
+      let parsed_path = helpers::parse_request_path(&listener.route[..], path);
+
+      if parsed_path.is_some() && listener.method.to_string() == method {
+        let parsed_path = parsed_path.unwrap();
+        request.path = parsed_path.path;
+        request.queries = parsed_path.queries;
+        request.params = parsed_path.params;
+
         let response = handler(request);
         status = response.status;
         contents = response.body;

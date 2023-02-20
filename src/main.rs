@@ -24,5 +24,10 @@ fn main() {
     Response::json(status, body, headers)
   });
 
+  server.get("/projects/:name", |request| {
+    let body = HashMap::new();
+    Response::json(200, body, None)
+  });
+
   server.listen(String::from(SERVER_ADDR));
 }
