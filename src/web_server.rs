@@ -1,26 +1,32 @@
 use std::{
-  any::Any,
   collections::HashMap,
-  io::{prelude::*, BufReader},
+  io::Write,
   net::{TcpListener, TcpStream},
   sync::{Arc, Mutex},
 };
 
 enum Method {
   Get,
+  Post,
 }
 impl Method {
   fn to_string(&self) -> String {
     match self {
       Method::Get => String::from("GET"),
+      Method::Post => String::from("POST"),
     }
   }
 }
 
 mod helpers;
 mod thread_pool;
+pub mod types;
+
+use types::{Request, Response};
 
 pub use thread_pool::ThreadPool;
+
+use self::types::Nested;
 
 pub struct Listener {
   route: String,
@@ -79,39 +85,35 @@ impl Server {
     }
   }
 
-  pub fn get<F>(&mut self, path: &str, request_handler: F)
+  fn request<F>(&mut self, method: Method, path: &str, request_handler: F)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
     let mut connection_handler = self.connection_handler.lock().unwrap();
     connection_handler.listeners.push(Listener {
-      method: Method::Get,
+      method,
       route: String::from(path),
       handler: Box::new(request_handler),
     });
   }
-}
 
-pub struct Request {
-  path: String,
-  body: String,
-  headers: String,
-  queries: Option<HashMap<String, String>>,
-  params: Option<HashMap<String, String>>,
-}
+  pub fn get<F>(&mut self, path: &str, request_handler: F)
+  where
+    F: Fn(Request) -> Response + Send + 'static,
+  {
+    self.request(Method::Get, path, request_handler);
+  }
 
-pub struct Response {
-  status: u16,
-  body: String,
-  headers: HashMap<String, String>,
+  pub fn post<F>(&mut self, path: &str, request_handler: F)
+  where
+    F: Fn(Request) -> Response + Send + 'static,
+  {
+    self.request(Method::Post, path, request_handler);
+  }
 }
 
 impl Response {
-  pub fn json(
-    status: u16,
-    body: HashMap<String, Box<dyn Any>>,
-    headers: Option<HashMap<String, String>>,
-  ) -> Response {
+  pub fn json(status: u16, body: Nested, headers: Option<HashMap<String, String>>) -> Response {
     let mut headers = headers.unwrap_or(HashMap::new());
 
     headers.insert(
@@ -121,7 +123,7 @@ impl Response {
 
     Response {
       status,
-      body: helpers::map_to_string(&body),
+      body: helpers::stringify_nested(&body),
       headers,
     }
   }
@@ -139,64 +141,40 @@ impl ConnectionHandler {
   }
 
   pub fn handle_connection(&self, mut stream: TcpStream) {
-    // BufReader implements the std::io::BufRead trait, which provides the lines
-    // method.
-    let buf_reader = BufReader::new(&mut stream);
+    let mut request = helpers::parse_tcp_stream(&mut stream).unwrap();
 
-    let request_line = buf_reader
-      // The lines method returns an iterator of `Result<String, std::io::Error>`
-      // by splitting the stream of data whenever it sees a newline byte.
-      .lines()
-      // gets the first item from the iterator.
-      .next()
-      // takes care of the `Option` and stops the program if the iterator has no
-      // items
-      .unwrap()
-      // handles the `Result`.
-      .unwrap();
-
-    let mut request_line = request_line.split_whitespace();
-    let method = request_line.next().unwrap().to_uppercase();
-    let path = request_line.next().unwrap();
-
-    let mut status = 500;
-    let mut contents = String::new();
-    let mut headers = String::new();
+    let mut response_status = 404;
+    let mut response_body = String::new();
+    let mut response_headers = String::new();
 
     for listener in self.listeners.iter() {
-      let handler = &listener.handler;
+      let parsed_path = helpers::parse_request_path(&listener.route[..], &request.path[..]);
 
-      let mut request = Request {
-        path: String::from(path),
-        queries: None,
-        params: None,
-        body: String::from(""),
-        headers: String::from(""),
-      };
+      if parsed_path.is_some() && listener.method.to_string() == request.method {
+        let handler = &listener.handler;
 
-      let parsed_path = helpers::parse_request_path(&listener.route[..], path);
-
-      if parsed_path.is_some() && listener.method.to_string() == method {
         let parsed_path = parsed_path.unwrap();
         request.path = parsed_path.path;
         request.queries = parsed_path.queries;
         request.params = parsed_path.params;
 
         let response = handler(request);
-        status = response.status;
-        contents = response.body;
+        response_status = response.status;
+        response_body = response.body;
 
         if response.headers.len() > 0 {
           for (key, value) in response.headers.iter() {
-            headers.push_str(&format!("{}: {}\r\n", key, value));
+            response_headers.push_str(&format!("{}: {}\r\n", key, value));
           }
         }
+        break;
       }
     }
 
-    let length = contents.len();
-    let response =
-      format!("HTTP/1.1 {status}\r\n{headers}Content-Length: {length}\r\n\r\n{contents}");
+    let length = response_body.len();
+    let response = format!(
+      "HTTP/1.1 {response_status}\r\n{response_headers}Content-Length: {length}\r\n\r\n{response_body}"
+    );
 
     // The write_all method on stream takes a &[u8] and sends those bytes directly
     // down the connection.
