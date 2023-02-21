@@ -1,5 +1,4 @@
 use std::{
-  any::Any,
   collections::HashMap,
   io::Write,
   net::{TcpListener, TcpStream},
@@ -26,6 +25,8 @@ pub mod types;
 use types::{Request, Response};
 
 pub use thread_pool::ThreadPool;
+
+use self::types::Nested;
 
 pub struct Listener {
   route: String,
@@ -112,11 +113,7 @@ impl Server {
 }
 
 impl Response {
-  pub fn json(
-    status: u16,
-    body: HashMap<String, Box<dyn Any>>,
-    headers: Option<HashMap<String, String>>,
-  ) -> Response {
+  pub fn json(status: u16, body: Nested, headers: Option<HashMap<String, String>>) -> Response {
     let mut headers = headers.unwrap_or(HashMap::new());
 
     headers.insert(
@@ -126,7 +123,7 @@ impl Response {
 
     Response {
       status,
-      body: helpers::map_to_string(&body),
+      body: helpers::stringify_nested(&body),
       headers,
     }
   }

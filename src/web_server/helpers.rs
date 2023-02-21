@@ -1,32 +1,33 @@
 use std::{
-  any::Any,
   collections::HashMap,
   io::{BufRead, BufReader, Error as IoError, Read},
   net::TcpStream,
 };
 
-use super::types::{Request, RequestPath};
+use super::types::{Nested, NestedValue, Request, RequestPath};
 
-/// Converts a HashMap<String, Box<dyn Any>> to a JSON string.
-pub fn map_to_string(map: &HashMap<String, Box<dyn Any>>) -> String {
+/// Converts a [Nested] to a JSON string.
+pub fn stringify_nested(nested: &Nested) -> String {
   let mut result = String::new();
-  result.push_str("{");
-
-  for (i, (key, value)) in map.iter().enumerate() {
-    match value.downcast_ref::<i32>() {
-      Some(v) => result.push_str(&format!("\"{}\":{}", key, v)),
-      None => match value.downcast_ref::<String>() {
-        Some(v) => result.push_str(&format!("\"{}\":\"{}\"", key, v)),
-        None => result.push_str(&format!("\"{}\":null", key)),
-      },
-    };
-    if i < map.len() - 1 {
-      result.push_str(",");
+  result.push_str("{ ");
+  for (i, (key, value)) in nested.iter().enumerate() {
+    result.push_str(&format!("\"{}\": {}", key, stringfy_nested_value(value)));
+    if i < nested.len() - 1 {
+      result.push_str(", ");
     }
   }
-
-  result.push_str("}");
+  result.push_str(" }");
   result
+}
+
+fn stringfy_nested_value(nested: &NestedValue) -> String {
+  match nested {
+    // NestedValue::Map(nested) => stringify_nested(nested),
+    NestedValue::Str(value) => format!("\"{}\"", value),
+    // NestedValue::Bool(value) => format!("{}", value),
+    // NestedValue::Int(value) => format!("{}", value),
+    // NestedValue::Float(value) => format!("{}", value),
+  }
 }
 
 /// Parses the parameters in a path.

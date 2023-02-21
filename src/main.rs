@@ -1,11 +1,10 @@
 mod web_server;
-use std::{
-  any::Any,
-  collections::HashMap,
-  fs::{self},
-};
+use std::fs;
 
-use web_server::{types::Response, Server, ServerConf};
+use web_server::{
+  types::{Nested, Response},
+  Server, ServerConf,
+};
 
 mod helpers;
 
@@ -20,19 +19,15 @@ fn main() {
   server.get("/", |_| {
     let status = 200;
     let headers = None;
-    let mut body = HashMap::new();
-
-    body.insert(
-      "name".to_owned(),
-      Box::new("Hello World".to_owned()) as Box<dyn Any>,
-    );
+    let mut body = Nested::new();
+    body.insert_string("name".to_string(), "Hello world!".to_string());
 
     Response::json(status, body, headers)
   });
 
   // Get a project.
   server.get("/projects/:name", |_| {
-    let body = HashMap::new();
+    let body = Nested::new();
     Response::json(200, body, None)
   });
 
@@ -43,14 +38,16 @@ fn main() {
 
     // Return error if the project already exists.
     if file_path.exists() {
-      let body = HashMap::new();
+      let mut body = Nested::new();
+      body.insert_string("error".to_string(), "Project already exists.".to_string());
+
       return Response::json(400, body, None);
     }
 
     // Create the project file.
     fs::write(file_path, request.body).unwrap();
 
-    let body = HashMap::new();
+    let body = Nested::new();
     Response::json(200, body, None)
   });
 
