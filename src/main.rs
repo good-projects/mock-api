@@ -1,7 +1,7 @@
 mod web_server;
 use std::{any::Any, collections::HashMap};
 
-use web_server::{Response, Server, ServerConf};
+use web_server::{types::Response, Server, ServerConf};
 
 const SERVER_ADDR: &str = "127.0.0.1:53500";
 const MAX_CONNECTIONS: usize = 4;
