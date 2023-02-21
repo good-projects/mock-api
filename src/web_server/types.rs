@@ -3,8 +3,8 @@ use std::collections::HashMap;
 #[derive(PartialEq, Debug)]
 pub struct RequestPath {
   pub path: String,
-  pub queries: Option<HashMap<String, String>>,
-  pub params: Option<HashMap<String, String>>,
+  pub queries: HashMap<String, String>,
+  pub params: HashMap<String, String>,
 }
 
 pub struct Request {
@@ -13,8 +13,8 @@ pub struct Request {
   pub version: String,
   pub headers: HashMap<String, String>,
   pub body: String,
-  pub queries: Option<HashMap<String, String>>,
-  pub params: Option<HashMap<String, String>>,
+  pub queries: HashMap<String, String>,
+  pub params: HashMap<String, String>,
 }
 
 pub struct Response {

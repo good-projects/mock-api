@@ -44,15 +44,9 @@ pub fn parse_request_path(path_pattern: &str, request_path: &str) -> Option<Requ
     }
   }
 
-  let params = if params.is_empty() {
-    None
-  } else {
-    Some(params)
-  };
-
   Some(RequestPath {
     path: path_pattern.to_string(),
-    queries: None,
+    queries: HashMap::new(),
     params: params,
   })
 }
@@ -64,16 +58,13 @@ mod tests {
   #[test]
   fn params_is_not_none() {
     let result = parse_request_path("/projects/:name", "/projects/my-project");
-    assert_eq!(
-      result.unwrap().params.unwrap().get("name").unwrap(),
-      "my-project"
-    );
+    assert_eq!(result.unwrap().params.get("name").unwrap(), "my-project");
   }
 
   #[test]
   fn params_is_none() {
     let result = parse_request_path("/projects/", "/projects/");
-    assert_eq!(result.unwrap().params, None);
+    assert!(result.unwrap().params.is_empty());
   }
 
   #[test]
@@ -130,7 +121,7 @@ pub fn parse_tcp_stream(stream: &mut TcpStream) -> Result<Request, IoError> {
     method,
     headers,
     body,
-    queries: None,
-    params: None,
+    queries: HashMap::new(),
+    params: HashMap::new(),
   })
 }
