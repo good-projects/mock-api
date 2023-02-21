@@ -33,7 +33,7 @@ pub struct Listener {
   handler: Handler,
 }
 
-type Handler = Box<dyn Fn(&Request) -> Response + Send + 'static>;
+type Handler = Box<dyn Fn(Request) -> Response + Send + 'static>;
 
 pub struct Server {
   max_connections: usize,
@@ -86,7 +86,7 @@ impl Server {
 
   fn request<F>(&mut self, method: Method, path: &str, request_handler: F)
   where
-    F: Fn(&Request) -> Response + Send + 'static,
+    F: Fn(Request) -> Response + Send + 'static,
   {
     let mut connection_handler = self.connection_handler.lock().unwrap();
     connection_handler.listeners.push(Listener {
@@ -98,14 +98,14 @@ impl Server {
 
   pub fn get<F>(&mut self, path: &str, request_handler: F)
   where
-    F: Fn(&Request) -> Response + Send + 'static,
+    F: Fn(Request) -> Response + Send + 'static,
   {
     self.request(Method::Get, path, request_handler);
   }
 
   pub fn post<F>(&mut self, path: &str, request_handler: F)
   where
-    F: Fn(&Request) -> Response + Send + 'static,
+    F: Fn(Request) -> Response + Send + 'static,
   {
     self.request(Method::Post, path, request_handler);
   }
@@ -151,8 +151,7 @@ impl ConnectionHandler {
     let mut response_headers = String::new();
 
     for listener in self.listeners.iter() {
-      let request = &mut request;
-      let parsed_path = helpers::parse_request_path(&listener.route[..], request.path.as_str());
+      let parsed_path = helpers::parse_request_path(&listener.route[..], &request.path[..]);
 
       if parsed_path.is_some() && listener.method.to_string() == request.method {
         let handler = &listener.handler;
@@ -171,6 +170,7 @@ impl ConnectionHandler {
             response_headers.push_str(&format!("{}: {}\r\n", key, value));
           }
         }
+        break;
       }
     }
 
