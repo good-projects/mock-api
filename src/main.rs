@@ -1,5 +1,4 @@
 mod web_server;
-use std::fs;
 
 use web_server::{
   types::{Nested, Response},
@@ -32,27 +31,10 @@ fn main() {
   });
 
   // Create a project.
-  server.post("/projects/:name", |request| {
-    let project_name = request.params.get("name").unwrap();
-    let file_path = helpers::get_project_config_file_path(project_name);
-
-    // Return error if the project already exists.
-    if file_path.exists() {
-      let mut body = Nested::new();
-      body.insert_string("error".to_string(), "Project already exists.".to_string());
-
-      return Response::json(400, body, None);
-    }
-
-    // Create the project file.
-    fs::write(file_path, request.body).unwrap();
-
-    let body = Nested::new();
-    Response::json(200, body, None)
-  });
+  server.post("/projects/:name", helpers::save_config());
 
   // Update a project.
-  // TODO: Implement this.
+  server.put("/projects/:name", helpers::save_config());
 
   server.listen(String::from(SERVER_ADDR));
 }

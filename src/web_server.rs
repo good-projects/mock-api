@@ -8,12 +8,14 @@ use std::{
 enum Method {
   Get,
   Post,
+  Put,
 }
 impl Method {
   fn to_string(&self) -> String {
     match self {
       Method::Get => String::from("GET"),
       Method::Post => String::from("POST"),
+      Method::Put => String::from("PUT"),
     }
   }
 }
@@ -109,6 +111,13 @@ impl Server {
     F: Fn(Request) -> Response + Send + 'static,
   {
     self.request(Method::Post, path, request_handler);
+  }
+
+  pub fn put<F>(&mut self, path: &str, request_handler: F)
+  where
+    F: Fn(Request) -> Response + Send + 'static,
+  {
+    self.request(Method::Put, path, request_handler);
   }
 }
 
