@@ -5,21 +5,6 @@ use std::{
   sync::{Arc, Mutex},
 };
 
-enum Method {
-  Get,
-  Post,
-  Put,
-}
-impl Method {
-  fn to_string(&self) -> String {
-    match self {
-      Method::Get => String::from("GET"),
-      Method::Post => String::from("POST"),
-      Method::Put => String::from("PUT"),
-    }
-  }
-}
-
 mod helpers;
 mod thread_pool;
 pub mod types;
@@ -28,10 +13,10 @@ use types::{Request, Response};
 
 pub use thread_pool::ThreadPool;
 
-use self::types::Nested;
+use self::types::{Method, Nested, RequestOption, RequestPathPattern};
 
 pub struct Listener {
-  route: String,
+  path: RequestPathPattern,
   method: Method,
   handler: Handler,
 }
@@ -87,14 +72,15 @@ impl Server {
     }
   }
 
-  fn request<F>(&mut self, method: Method, path: &str, request_handler: F)
+  fn request<F>(&mut self, request_handler: F, option: RequestOption)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
     let mut connection_handler = self.connection_handler.lock().unwrap();
+
     connection_handler.listeners.push(Listener {
-      method,
-      route: String::from(path),
+      method: option.method,
+      path: option.path,
       handler: Box::new(request_handler),
     });
   }
@@ -103,21 +89,39 @@ impl Server {
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
-    self.request(Method::Get, path, request_handler);
+    self.request(
+      request_handler,
+      RequestOption {
+        path: RequestPathPattern::Exact(String::from(path)),
+        method: Method::Get,
+      },
+    );
   }
 
   pub fn post<F>(&mut self, path: &str, request_handler: F)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
-    self.request(Method::Post, path, request_handler);
+    self.request(
+      request_handler,
+      RequestOption {
+        path: RequestPathPattern::Exact(String::from(path)),
+        method: Method::Post,
+      },
+    );
   }
 
   pub fn put<F>(&mut self, path: &str, request_handler: F)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
-    self.request(Method::Put, path, request_handler);
+    self.request(
+      request_handler,
+      RequestOption {
+        path: RequestPathPattern::Exact(String::from(path)),
+        method: Method::Put,
+      },
+    );
   }
 }
 
@@ -171,7 +175,7 @@ impl ConnectionHandler {
     let mut response_headers = String::new();
 
     for listener in self.listeners.iter() {
-      let parsed_path = helpers::parse_request_path(&listener.route[..], &request.path[..]);
+      let parsed_path = helpers::parse_request_path(&listener.path, &request.path[..]);
 
       if parsed_path.is_some() && listener.method.to_string() == request.method {
         let handler = &listener.handler;

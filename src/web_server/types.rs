@@ -18,6 +18,32 @@ pub struct Request {
   pub params: HashMap<String, String>,
 }
 
+pub enum Method {
+  Get,
+  Post,
+  Put,
+}
+
+impl Method {
+  pub fn to_string(&self) -> String {
+    match self {
+      Method::Get => String::from("GET"),
+      Method::Post => String::from("POST"),
+      Method::Put => String::from("PUT"),
+    }
+  }
+}
+
+pub enum RequestPathPattern {
+  Exact(String),
+  Match(String),
+}
+
+pub struct RequestOption {
+  pub method: Method,
+  pub path: RequestPathPattern,
+}
+
 /// A data structure that represents a response.
 pub struct Response {
   pub status: u16,
