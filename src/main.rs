@@ -1,5 +1,6 @@
 mod web_server;
 
+use std::{collections::HashMap, fs::read_to_string};
 use web_server::{
   types::{Nested, Response},
   Server, ServerConf,
@@ -25,9 +26,22 @@ fn main() {
   });
 
   // Get a project.
-  server.get("/projects/:name", |_| {
-    let body = Nested::new();
-    Response::json(200, body, None)
+  server.get("/projects/:name", |request| {
+    let file = helpers::get_project_config_file_path(request.params.get("name").unwrap());
+
+    if file.exists() {
+      let content = read_to_string(file).unwrap();
+      let mut headers = HashMap::new();
+      headers.insert(
+        String::from("Content-Type"),
+        String::from("application/json"),
+      );
+      Response::ok(content, Some(headers))
+    } else {
+      let mut body = Nested::new();
+      body.insert_string("error".to_string(), "Project does not exist.".to_string());
+      Response::json(404, body, None)
+    }
   });
 
   // Create a project.

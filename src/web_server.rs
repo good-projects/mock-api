@@ -136,6 +136,20 @@ impl Response {
       headers,
     }
   }
+
+  pub fn ok(body: String, headers: Option<HashMap<String, String>>) -> Response {
+    let mut headers = headers.unwrap_or(HashMap::new());
+
+    if headers.get("Content-Type").is_none() {
+      headers.insert(String::from("Content-Type"), String::from("text/plain"));
+    }
+
+    Response {
+      status: 200,
+      body,
+      headers,
+    }
+  }
 }
 
 struct ConnectionHandler {
