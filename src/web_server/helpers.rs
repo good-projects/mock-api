@@ -4,7 +4,7 @@ use std::{
   net::TcpStream,
 };
 
-use super::types::{Nested, NestedValue, Request, RequestPath};
+use super::types::{Nested, NestedValue, Request, RequestPath, RequestPathPattern};
 
 /// Converts a [Nested] to a JSON string.
 pub fn stringify_nested(nested: &Nested) -> String {
@@ -31,7 +31,15 @@ fn stringfy_nested_value(nested: &NestedValue) -> String {
 }
 
 /// Parses the parameters in a path.
-pub fn parse_request_path(path_pattern: &str, request_path: &str) -> Option<RequestPath> {
+pub fn parse_request_path(
+  path_pattern: &RequestPathPattern,
+  request_path: &str,
+) -> Option<RequestPath> {
+  let path_pattern = match path_pattern {
+    RequestPathPattern::Exact(path) => path,
+    RequestPathPattern::Match(path) => path,
+  };
+
   let mut params = HashMap::new();
   let pattern_segments: Vec<&str> = path_pattern.split("/").collect();
   let request_segments: Vec<&str> = request_path.split("/").collect();
@@ -58,19 +66,28 @@ mod tests {
 
   #[test]
   fn params_is_not_none() {
-    let result = parse_request_path("/projects/:name", "/projects/my-project");
+    let result = parse_request_path(
+      &RequestPathPattern::Exact(String::from("/projects/:name")),
+      "/projects/my-project",
+    );
     assert_eq!(result.unwrap().params.get("name").unwrap(), "my-project");
   }
 
   #[test]
   fn params_is_none() {
-    let result = parse_request_path("/projects/", "/projects/");
+    let result = parse_request_path(
+      &RequestPathPattern::Exact(String::from("/projects/")),
+      "/projects/",
+    );
     assert!(result.unwrap().params.is_empty());
   }
 
   #[test]
   fn request_path_does_not_match() {
-    let result = parse_request_path("/projects/:name", "/files/");
+    let result = parse_request_path(
+      &RequestPathPattern::Exact(String::from("/projects/:name")),
+      "/files/",
+    );
 
     assert_eq!(result, None);
   }
