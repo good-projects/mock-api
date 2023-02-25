@@ -2,26 +2,13 @@
 
 Avoid using third-party libraries as much as possible.
 
-## request data of `params`, `body` and `headers`
+## queries, headers, body of request
 
-All these data act as conditions, it means it will be always matched if leave
-all these data empty.
+These data are used to match the request data.
 
-### Using raw data
-
-```json
-{
-  "params": {
-    "name": "foo"
-  }
-}
-```
-
-### Using relational operators
+## Example
 
 operators: `is`, `is!`, `contains`, `contains!`
-
-### Example
 
 ```json
 {
@@ -33,7 +20,7 @@ operators: `is`, `is!`, `contains`, `contains!`
         {
           "method": "GET",
           "request": {
-            "params": [
+            "queries": [
               {
                 "operator": "is!",
                 "name": "name",
