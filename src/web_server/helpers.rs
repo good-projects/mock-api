@@ -1,3 +1,5 @@
+use regex::Regex;
+
 use std::{
   collections::HashMap,
   io::{BufRead, BufReader, Error as IoError, Read},
@@ -35,29 +37,53 @@ pub fn parse_request_path(
   path_pattern: &RequestPathPattern,
   request_path: &str,
 ) -> Option<RequestPath> {
-  let path_pattern = match path_pattern {
-    RequestPathPattern::Exact(path) => path,
-    RequestPathPattern::Match(path) => path,
-  };
+  match path_pattern {
+    RequestPathPattern::Exact(path_pattern) => {
+      let mut params = HashMap::new();
+      let pattern_segments: Vec<&str> = path_pattern.split("/").collect();
+      let request_segments: Vec<&str> = request_path.split("/").collect();
 
-  let mut params = HashMap::new();
-  let pattern_segments: Vec<&str> = path_pattern.split("/").collect();
-  let request_segments: Vec<&str> = request_path.split("/").collect();
+      if pattern_segments.len() != request_segments.len() {
+        return None;
+      }
 
-  for (pattern, request) in pattern_segments.iter().zip(request_segments.iter()) {
-    if pattern.starts_with(":") {
-      let key = pattern[1..].to_string();
-      params.insert(key, request.to_string());
-    } else if pattern != request {
-      return None;
+      for (pattern, request) in pattern_segments.iter().zip(request_segments.iter()) {
+        if pattern.starts_with(":") {
+          let key = pattern[1..].to_string();
+          params.insert(key, request.to_string());
+        } else if pattern != request {
+          return None;
+        }
+      }
+
+      Some(RequestPath {
+        path: request_path.to_string(),
+        queries: HashMap::new(),
+        params,
+        matches: Vec::new(),
+      })
+    }
+    RequestPathPattern::Match(path_pattern) => {
+      let regexp = Regex::new(path_pattern).unwrap();
+
+      if let Some(captures) = regexp.captures(request_path) {
+        let mut matches = Vec::new();
+        for (i, capture) in captures.iter().enumerate() {
+          if i > 0 {
+            matches.push(capture.unwrap().as_str().to_string());
+          }
+        }
+        Some(RequestPath {
+          path: request_path.to_string(),
+          queries: HashMap::new(),
+          params: HashMap::new(),
+          matches,
+        })
+      } else {
+        None
+      }
     }
   }
-
-  Some(RequestPath {
-    path: path_pattern.to_string(),
-    queries: HashMap::new(),
-    params: params,
-  })
 }
 
 #[cfg(test)]
@@ -141,5 +167,6 @@ pub fn parse_tcp_stream(stream: &mut TcpStream) -> Result<Request, IoError> {
     body,
     queries: HashMap::new(),
     params: HashMap::new(),
+    matches: Vec::new(),
   })
 }

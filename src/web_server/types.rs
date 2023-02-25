@@ -5,6 +5,7 @@ pub struct RequestPath {
   pub path: String,
   pub queries: HashMap<String, String>,
   pub params: HashMap<String, String>,
+  pub matches: Vec<String>,
 }
 
 /// A data structure that represents a request.
@@ -16,6 +17,7 @@ pub struct Request {
   pub body: String,
   pub queries: HashMap<String, String>,
   pub params: HashMap<String, String>,
+  pub matches: Vec<String>,
 }
 
 pub enum Method {
