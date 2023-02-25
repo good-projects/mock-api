@@ -46,8 +46,8 @@ pub fn mock_request() -> impl Fn(Request) -> Response {
 
     // TODO: Implement these matching.
     // let actual_queries = &request.queries;
-    // let actual_params = &request.params;
     // let actual_headers = &request.headers;
+    // let actual_body = &request.body;
 
     for endpoint in endpoints.as_array().unwrap() {
       let expected_path = &endpoint["path"].as_str().unwrap();
