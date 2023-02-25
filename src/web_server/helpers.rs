@@ -35,8 +35,23 @@ fn stringfy_nested_value(nested: &NestedValue) -> String {
 /// Parses the parameters in a path.
 pub fn parse_request_path(
   path_pattern: &RequestPathPattern,
-  request_path: &str,
+  mut request_path: &str,
 ) -> Option<RequestPath> {
+  let mut queries = HashMap::new();
+  let query_string_starts = request_path.find('?');
+
+  if query_string_starts.is_some() {
+    let query_string_starts = query_string_starts.unwrap();
+    let query_string = request_path[query_string_starts + 1..].to_string();
+    request_path = &request_path[..query_string_starts];
+    queries = query_string
+      .split('&')
+      .map(|s| s.split('=').collect::<Vec<&str>>())
+      .filter(|v| v.len() == 2)
+      .map(|v| (v[0].to_string(), v[1].to_string()))
+      .collect();
+  }
+
   match path_pattern {
     RequestPathPattern::Exact(path_pattern) => {
       let mut params = HashMap::new();
@@ -58,7 +73,7 @@ pub fn parse_request_path(
 
       Some(RequestPath {
         path: request_path.to_string(),
-        queries: HashMap::new(),
+        queries,
         params,
         matches: Vec::new(),
       })
