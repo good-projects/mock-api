@@ -72,7 +72,7 @@ impl Server {
     }
   }
 
-  fn request<F>(&mut self, request_handler: F, option: RequestOption)
+  pub fn request<F>(&mut self, request_handler: F, option: RequestOption)
   where
     F: Fn(Request) -> Response + Send + 'static,
   {
@@ -184,6 +184,7 @@ impl ConnectionHandler {
         request.path = parsed_path.path;
         request.queries = parsed_path.queries;
         request.params = parsed_path.params;
+        request.matches = parsed_path.matches;
 
         let response = handler(request);
         response_status = response.status;
