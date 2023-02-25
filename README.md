@@ -1,6 +1,6 @@
-### Warning
+### Note
 
-Do not use third-party libraries in this project.
+Avoid using third-party libraries as much as possible.
 
 ## request data of `params`, `body` and `headers`
 
@@ -25,7 +25,7 @@ operators: `is`, `is!`, `contains`, `contains!`
 
 ```json
 {
-  "project": "my-project",
+  "description": "my-project",
   "endpoints": [
     {
       "path": "hello",
